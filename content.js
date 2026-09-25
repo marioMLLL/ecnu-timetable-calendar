@@ -80,11 +80,16 @@
     if (headers.length < 5) throw new Error("没有找到星期列。请切换到“我的课表”的课表视图后重试。");
     const courses = [];
     const seen = new Set();
+    const occurrenceCounts = new Map();
     for (const element of findCourseElements()) {
       const parsed = ScheduleCore.parseCourseText(element.innerText || element.textContent);
       if (!parsed || !parsed.weeks.length) continue;
       parsed.weekday = nearestWeekday(element, headers);
       if (!parsed.weekday) continue;
+      const seriesBase = parsed.teachingCode || parsed.title;
+      const occurrenceIndex = occurrenceCounts.get(seriesBase) || 0;
+      occurrenceCounts.set(seriesBase, occurrenceIndex + 1);
+      parsed.seriesKey = `dom:${seriesBase}:${occurrenceIndex}`;
       const key = [parsed.title, parsed.teachingCode, parsed.weekday, parsed.weekSpec, parsed.startPeriod, parsed.endPeriod].join("|");
       if (seen.has(key)) continue;
       seen.add(key);

@@ -43,12 +43,33 @@
         <button id="export" class="primary" type="button" disabled>导入到系统日历</button>
         <button id="qr" class="secondary qr-button" type="button" disabled>手机扫码导入</button>
       </section>
+      <section id="subscriptionPanel" class="subscription-panel">
+        <div class="subscription-title"><strong>私人课表订阅</strong><span>自动同步调课</span></div>
+        <p class="privacy-warning">⚠️ 拿到订阅链接的人可以看到课程名称、时间和地点。请勿公开分享。学校 Cookie、SESSION 和学号不会上传。</p>
+        <label>自动删除日期<input id="subscriptionExpiry" type="date"></label>
+        <div id="subscriptionInactive">
+          <button id="createSubscription" class="secondary compact" type="button" disabled>创建私人订阅</button>
+        </div>
+        <div id="subscriptionActive" hidden>
+          <label>订阅地址<input id="subscriptionUrl" type="text" readonly></label>
+          <p id="subscriptionMeta" class="subscription-meta"></p>
+          <div class="subscription-actions">
+            <button id="copySubscription" class="secondary compact" type="button">复制地址</button>
+            <button id="syncSubscription" class="secondary compact" type="button">立即同步</button>
+            <button id="regenerateSubscription" class="secondary compact" type="button">重新生成</button>
+            <button id="revokeSubscription" class="danger compact" type="button">撤销订阅</button>
+          </div>
+        </div>
+        <p id="subscriptionStatus" class="subscription-meta" role="status"></p>
+      </section>
       <p id="platformTip" class="tip">先读取并预览课程；日历准备完成后，再点击导入。</p>
     </main>
     <script src="vendor/lz-string.min.js"></script>
     <script src="vendor/qrcode.js"></script>
     <script src="lib/schedule-core.js"></script>
     <script src="lib/mobile-payload.js"></script>
+    <script src="lib/subscription-config.js"></script>
+    <script src="lib/subscription-client.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>

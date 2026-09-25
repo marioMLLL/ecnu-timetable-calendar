@@ -12,6 +12,7 @@ zip -r -FS "$OUTPUT_FILE" \
   manifest.json \
   api-hook.js \
   content.js \
+  background.js \
   popup.html \
   popup.css \
   popup.js \

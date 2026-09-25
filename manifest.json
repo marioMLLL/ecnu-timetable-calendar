@@ -1,10 +1,13 @@
 {
   "manifest_version": 3,
   "name": "华师大课表导入日历",
-  "version": "1.9.1",
+  "version": "1.10.0",
   "description": "从 ECNU 学生管理系统读取课表，导入电脑日历，或扫码导入 iPhone 与 Android。",
-  "permissions": ["activeTab", "downloads", "downloads.open", "scripting", "storage"],
-  "host_permissions": ["https://byyt.ecnu.edu.cn/*", "https://*.ecnu.edu.cn/*"],
+  "permissions": ["activeTab", "alarms", "downloads", "downloads.open", "scripting", "storage"],
+  "host_permissions": ["https://byyt.ecnu.edu.cn/*", "https://*.ecnu.edu.cn/*", "https://calendar.ycping.top/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
   "action": {
     "default_title": "导出课表到日历",
     "default_popup": "popup.html"

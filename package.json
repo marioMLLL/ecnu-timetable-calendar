@@ -1,10 +1,10 @@
 {
   "name": "ecnu-timetable-calendar",
-  "version": "1.9.1",
+  "version": "1.10.0",
   "private": true,
   "description": "Export ECNU timetables to desktop calendars or import them on iPhone and Android by QR code.",
   "scripts": {
-    "test": "node tests/schedule-core.test.js && node tests/mobile-payload.test.js && node scripts/validate-project.js && node --check api-hook.js && node --check content.js && node --check popup.js && node --check lib/schedule-core.js && node --check lib/mobile-payload.js && node --check mobile/mobile.js",
+    "test": "node tests/schedule-core.test.js && node tests/mobile-payload.test.js && node tests/subscription-client.test.js && node tests/subscription-worker.test.mjs && node scripts/validate-project.js && node --check api-hook.js && node --check background.js && node --check content.js && node --check popup.js && node --check lib/schedule-core.js && node --check lib/mobile-payload.js && node --check lib/subscription-client.js && node --check mobile/mobile.js && node --check worker/src/index.mjs",
     "package": "sh scripts/package-extension.sh"
   },
   "license": "MIT",

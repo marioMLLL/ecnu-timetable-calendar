@@ -3,5 +3,13 @@
 dist/
 node_modules/
 
+# Cloudflare/Wrangler local state and deployment credentials.
+worker/.wrangler/
+worker/.dev.vars
+worker/.dev.vars.*
+.env
+.env.*
+!.env.example
+
 # Local copies/extracted packages that are not source files.
 /课程插件/

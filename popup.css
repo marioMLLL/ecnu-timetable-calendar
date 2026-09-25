@@ -35,3 +35,12 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 #qrImage { display: block; width: min(100%, 320px); height: auto; margin: 0 auto; image-rendering: pixelated; }
 .qr-panel p { margin: 9px 3px 0; color: #707a8f; font-size: 11px; line-height: 1.5; }
 .tip { margin: 9px 2px 0; color: #8790a2; font-size: 11px; line-height: 1.5; }
+.subscription-panel { margin-top: 12px; padding: 12px; border: 1px solid #dfe4ee; border-radius: 12px; background: #fff; }
+.subscription-title { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
+.subscription-title span { color: #718096; font-size: 10px; }
+.privacy-warning { margin: 9px 0 10px; padding: 9px; border-radius: 8px; color: #7b4a14; background: #fff7e6; font-size: 10px; line-height: 1.5; }
+.compact { height: 34px; margin-top: 8px; font-size: 11px; }
+.subscription-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.danger { margin-top: 8px; border: 1px solid #d92d4f; color: #b4233e; background: #fff; }
+.subscription-meta { margin: 7px 1px 0; color: #768196; font-size: 10px; line-height: 1.45; overflow-wrap: anywhere; }
+#subscriptionStatus.error { color: #b4233e; }

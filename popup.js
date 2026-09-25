@@ -5,6 +5,8 @@
   const dayNames = ["", "周一", "周二", "周三", "周四", "周五", "周六", "周日"];
   const COURSE_TABLE_API_PATH = "/student/for-std/course-table/get-data";
   const MOBILE_IMPORT_URL = "https://mariomlll.github.io/ecnu-timetable-calendar/mobile/";
+  const SUBSCRIPTION_SERVICE_URL = SubscriptionConfig.SERVICE_BASE_URL;
+  const SUBSCRIPTION_STORAGE_KEY = SubscriptionConfig.STORAGE_KEY;
   const platformName = navigator.userAgentData?.platform || navigator.platform || "";
   const isWindows = /win/i.test(platformName);
   const isMac = /mac/i.test(platformName);
@@ -29,6 +31,8 @@
   };
   let scanResult = null;
   let pendingDownloadId = null;
+  let lastCalendarContent = "";
+  let subscriptionState = null;
 
   function localDateString(date) {
     const year = date.getFullYear();
@@ -40,6 +44,59 @@
   function setStatus(message, isError) {
     $("#status").textContent = message;
     $("#status").classList.toggle("error", Boolean(isError));
+  }
+
+  function setSubscriptionStatus(message, isError) {
+    $("#subscriptionStatus").textContent = message || "";
+    $("#subscriptionStatus").classList.toggle("error", Boolean(isError));
+  }
+
+  function isoDateInShanghai(dateValue) {
+    const date = new Date(dateValue);
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Shanghai",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).format(date);
+  }
+
+  function suggestedExpiryDate() {
+    if (!scanResult?.courses?.length || !$("#firstMonday").value) {
+      const fallback = new Date();
+      fallback.setMonth(fallback.getMonth() + 6);
+      return localDateString(fallback);
+    }
+    let maxOffset = 0;
+    for (const course of scanResult.courses) {
+      const lastWeek = Math.max(...course.weeks);
+      maxOffset = Math.max(maxOffset, (lastWeek - 1) * 7 + course.weekday - 1);
+    }
+    const [year, month, day] = $("#firstMonday").value.split("-").map(Number);
+    const expiry = new Date(Date.UTC(year, month - 1, day + maxOffset + 14));
+    return expiry.toISOString().slice(0, 10);
+  }
+
+  function expiryIsoValue() {
+    const value = $("#subscriptionExpiry").value;
+    if (!value) throw new Error("请选择订阅自动删除日期");
+    return new Date(`${value}T23:59:59+08:00`).toISOString();
+  }
+
+  function renderSubscription() {
+    const active = Boolean(subscriptionState?.readUrl);
+    $("#subscriptionInactive").hidden = active;
+    $("#subscriptionActive").hidden = !active;
+    if (!active) {
+      $("#createSubscription").disabled = !lastCalendarContent;
+      return;
+    }
+    $("#subscriptionExpiry").value = isoDateInShanghai(subscriptionState.expiresAt);
+    $("#subscriptionUrl").value = subscriptionState.readUrl;
+    const expiry = isoDateInShanghai(subscriptionState.expiresAt);
+    const updated = subscriptionState.updatedAt ? new Date(subscriptionState.updatedAt).toLocaleString("zh-CN") : "尚未同步";
+    $("#subscriptionMeta").textContent = `自动删除：${expiry} · 上次更新：${updated}`;
+    if (subscriptionState.lastSyncError) setSubscriptionStatus(`上次同步失败：${subscriptionState.lastSyncError}`, true);
   }
 
   function renderPreview() {
@@ -67,6 +124,8 @@
     $("#export").disabled = true;
     $("#qr").disabled = false;
     $("#qrPanel").hidden = true;
+    $("#subscriptionExpiry").value = suggestedExpiryDate();
+    $("#createSubscription").disabled = false;
   }
 
   async function injectAndFindFrames(tabId) {
@@ -161,6 +220,8 @@
 
   async function scan() {
     pendingDownloadId = null;
+    lastCalendarContent = "";
+    renderSubscription();
     chrome.storage.local.remove("pendingDownloadId");
     $("#export").textContent = "正在读取课程…";
     $("#actions").hidden = true;
@@ -223,6 +284,62 @@
     });
   }
 
+  function subscriptionStateForCurrentScan(baseState) {
+    return Object.assign({}, baseState, {
+      endpoint: scanResult?.endpoint || baseState.endpoint || "",
+      firstMonday: $("#firstMonday").value,
+      reminderMinutes: Number($("#reminder").value),
+      calendarName: $("#calendarName").value.trim() || "华师大课表",
+      periodTimes: scanResult?.periodTimes || ScheduleCore.DEFAULT_PERIODS
+    });
+  }
+
+  async function syncCurrentSubscription(content, announce) {
+    if (!subscriptionState?.readUrl) return;
+    const contentHash = await SubscriptionClient.fingerprintCalendar(content);
+    subscriptionState = subscriptionStateForCurrentScan(subscriptionState);
+    if (contentHash !== subscriptionState.contentHash) {
+      subscriptionState = await SubscriptionClient.updateFeed(subscriptionState, content);
+      if (announce) setSubscriptionStatus("订阅已更新，日历应用会在下次刷新时同步。", false);
+    } else if (announce) {
+      setSubscriptionStatus("课表没有变化，无需上传。", false);
+    }
+    subscriptionState.lastCheckedAt = new Date().toISOString();
+    subscriptionState.lastSyncError = "";
+    await chrome.storage.local.set({ [SUBSCRIPTION_STORAGE_KEY]: subscriptionState });
+    renderSubscription();
+  }
+
+  async function createSubscription(replaceExisting) {
+    if (!lastCalendarContent || !scanResult?.courses?.length) throw new Error("请先读取并预览课程");
+    if (replaceExisting && subscriptionState?.readUrl) {
+      await SubscriptionClient.deleteFeed(subscriptionState);
+      subscriptionState = null;
+      await chrome.storage.local.remove(SUBSCRIPTION_STORAGE_KEY);
+      renderSubscription();
+    }
+    const created = await SubscriptionClient.createFeed(
+      SUBSCRIPTION_SERVICE_URL,
+      lastCalendarContent,
+      expiryIsoValue()
+    );
+    subscriptionState = subscriptionStateForCurrentScan(created);
+    subscriptionState.lastCheckedAt = subscriptionState.updatedAt;
+    subscriptionState.lastSyncError = "";
+    await chrome.storage.local.set({ [SUBSCRIPTION_STORAGE_KEY]: subscriptionState });
+    renderSubscription();
+    setSubscriptionStatus("私人订阅已创建。请将订阅地址添加到日历应用，不要公开分享。", false);
+  }
+
+  async function revokeSubscription() {
+    if (!subscriptionState?.readUrl) return;
+    await SubscriptionClient.deleteFeed(subscriptionState);
+    subscriptionState = null;
+    await chrome.storage.local.remove(SUBSCRIPTION_STORAGE_KEY);
+    renderSubscription();
+    setSubscriptionStatus("订阅已撤销，原地址现在无法读取课表。", false);
+  }
+
   function waitForDownload(downloadId) {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => finish(new Error("日历文件生成超时")), 15000);
@@ -259,6 +376,15 @@
     });
     if (!result.eventCount) {
       throw new Error("没有可导出的日程，请检查课程周次与节次。");
+    }
+    lastCalendarContent = result.content;
+    renderSubscription();
+    if (subscriptionState?.readUrl) {
+      try {
+        await syncCurrentSubscription(result.content, false);
+      } catch (error) {
+        setSubscriptionStatus(`课程已读取，但订阅同步失败：${error.message || String(error)}`, true);
+      }
     }
 
     const dataUrl = `data:text/calendar;charset=utf-8,${encodeURIComponent(result.content)}`;
@@ -315,7 +441,8 @@
       const payload = MobilePayload.fromCourses(scanResult.courses, {
         firstMonday: $("#firstMonday").value,
         reminderMinutes: Number($("#reminder").value),
-        calendarName: $("#calendarName").value.trim() || "华师大课表"
+        calendarName: $("#calendarName").value.trim() || "华师大课表",
+        periodTimes: scanResult.periodTimes
       });
       const importUrl = MobilePayload.makeUrl(MOBILE_IMPORT_URL, payload);
       const code = qrcode(0, "L");
@@ -363,9 +490,78 @@
       });
     }
   });
+  chrome.storage.local.get(SUBSCRIPTION_STORAGE_KEY).then((saved) => {
+    subscriptionState = saved[SUBSCRIPTION_STORAGE_KEY] || null;
+    if (subscriptionState && Date.parse(subscriptionState.expiresAt) <= Date.now()) {
+      subscriptionState = null;
+      chrome.storage.local.remove(SUBSCRIPTION_STORAGE_KEY);
+    }
+    if (!$("#subscriptionExpiry").value) $("#subscriptionExpiry").value = suggestedExpiryDate();
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const maximum = new Date();
+    maximum.setDate(maximum.getDate() + 400);
+    $("#subscriptionExpiry").min = localDateString(tomorrow);
+    $("#subscriptionExpiry").max = localDateString(maximum);
+    renderSubscription();
+  });
   $("#scan").addEventListener("click", scan);
   $("#export").addEventListener("click", exportCalendar);
   $("#qr").addEventListener("click", showQrCode);
+  $("#createSubscription").addEventListener("click", async () => {
+    try {
+      $("#createSubscription").disabled = true;
+      setSubscriptionStatus("正在创建私人订阅…", false);
+      await createSubscription(false);
+    } catch (error) {
+      setSubscriptionStatus(error.message || String(error), true);
+    } finally {
+      if (!subscriptionState) $("#createSubscription").disabled = !lastCalendarContent;
+    }
+  });
+  $("#copySubscription").addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(subscriptionState.readUrl);
+      setSubscriptionStatus("订阅地址已复制。请把它作为“网络日历”添加，不要发给其他人。", false);
+    } catch (error) {
+      setSubscriptionStatus(`复制失败：${error.message || String(error)}`, true);
+    }
+  });
+  $("#syncSubscription").addEventListener("click", async () => {
+    try {
+      setSubscriptionStatus("正在检查课表更新…", false);
+      if (lastCalendarContent && scanResult) {
+        await syncCurrentSubscription(lastCalendarContent, true);
+      } else {
+        const response = await chrome.runtime.sendMessage({ type: "SYNC_SUBSCRIPTION" });
+        if (!response?.ok) throw new Error(response?.error || "后台同步失败");
+        const saved = await chrome.storage.local.get(SUBSCRIPTION_STORAGE_KEY);
+        subscriptionState = saved[SUBSCRIPTION_STORAGE_KEY] || subscriptionState;
+        renderSubscription();
+        setSubscriptionStatus(response.result?.updated ? "订阅已更新。" : "课表没有变化。", false);
+      }
+    } catch (error) {
+      setSubscriptionStatus(`同步失败：${error.message || String(error)}。如果登录已过期，请先打开学校课表。`, true);
+    }
+  });
+  $("#regenerateSubscription").addEventListener("click", async () => {
+    if (!confirm("重新生成后，原订阅地址会立即失效，你需要在日历应用中替换地址。继续吗？")) return;
+    try {
+      setSubscriptionStatus("正在撤销旧地址并生成新令牌…", false);
+      await createSubscription(true);
+    } catch (error) {
+      setSubscriptionStatus(`重新生成失败：${error.message || String(error)}`, true);
+    }
+  });
+  $("#revokeSubscription").addEventListener("click", async () => {
+    if (!confirm("撤销后，已添加到日历应用的订阅地址将失效。继续吗？")) return;
+    try {
+      setSubscriptionStatus("正在撤销订阅…", false);
+      await revokeSubscription();
+    } catch (error) {
+      setSubscriptionStatus(`撤销失败：${error.message || String(error)}`, true);
+    }
+  });
   $("#firstMonday").addEventListener("change", invalidatePreparedCalendar);
   $("#reminder").addEventListener("change", invalidatePreparedCalendar);
   $("#calendarName").addEventListener("input", invalidatePreparedCalendar);

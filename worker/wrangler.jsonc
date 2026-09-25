@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ecnu-calendar-subscription",
+  "main": "src/index.mjs",
+  "compatibility_date": "2026-09-22",
+  "vars": {
+    "PUBLIC_BASE_URL": "https://calendar.ycping.top"
+  },
+  "routes": [
+    {
+      "pattern": "calendar.ycping.top",
+      "custom_domain": true
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "CALENDAR_FEEDS",
+      "id": "affa44ed2eb04929b49d2bae977ed11e"
+    }
+  ]
+}

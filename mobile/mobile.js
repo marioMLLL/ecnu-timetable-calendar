@@ -57,10 +57,12 @@
   try {
     const payload = readPayload();
     const courses = MobilePayload.toCourses(payload, ScheduleCore.parseWeekSpec);
+    const periodTimes = MobilePayload.toPeriodTimes(payload, ScheduleCore.DEFAULT_PERIODS);
     const calendar = ScheduleCore.buildIcs(courses, {
       firstMonday: payload.m,
       reminderMinutes: payload.r,
-      calendarName: payload.n
+      calendarName: payload.n,
+      periodTimes
     });
     if (!calendar.eventCount) throw new Error("课表中没有可导入的日程。 ");
 
